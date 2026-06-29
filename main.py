@@ -1,4 +1,5 @@
 import datetime
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,6 +32,7 @@ def main():
             mark_seen(article)
             new_relevant += 1
             print(f"[main] Relevant & sent: {article['title']}")
+            time.sleep(7)
         else:
             # Still mark as seen so we don't re-evaluate it next run
             mark_seen(article)
