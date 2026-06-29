@@ -1,5 +1,5 @@
 import os
-import google.generativeai as genai
+from google import genai
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
@@ -23,9 +23,11 @@ def summarize_article(article):
     )
 
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content(prompt)
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
         result = response.text.strip()
         print(f"[summarizer] Summary generated for: {title[:60]}")
         return result
