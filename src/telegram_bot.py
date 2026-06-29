@@ -1,18 +1,19 @@
 import os
 import requests
 from src.filter import classify_category
+from src.summarizer import summarize_article
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 
-def _send(text):
+def _send(text, disable_preview=False):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
         "parse_mode": "Markdown",
-        "disable_web_page_preview": False,
+        "disable_web_page_preview": disable_preview,
     }
     resp = requests.post(url, json=payload, timeout=10)
     if not resp.ok:
@@ -22,17 +23,27 @@ def _send(text):
 
 def send_article_alert(article):
     title = article.get("title", "No title")
-    summary = article.get("summary", "")[:200]
     link = article.get("link", "")
     source = article.get("source", "Unknown")
     category = classify_category(article)
 
-    text = (
-        f"🔔 *{_escape(title)}*\n\n"
-        f"_{_escape(summary)}_\n\n"
-        f"📌 {category} | {source}\n"
-        f"[Baca selengkapnya]({link})"
-    )
+    ai_summary = summarize_article(article)
+
+    if ai_summary:
+        text = (
+            f"🔔 *{_escape(title)}*\n\n"
+            f"📌 {category} | {source}\n\n"
+            f"🤖 {_escape(ai_summary)}\n\n"
+            f"[Baca selengkapnya]({link})"
+        )
+    else:
+        summary = article.get("summary", "")[:200]
+        text = (
+            f"🔔 *{_escape(title)}*\n\n"
+            f"_{_escape(summary)}_\n\n"
+            f"📌 {category} | {source}\n"
+            f"[Baca selengkapnya]({link})"
+        )
 
     if _send(text):
         print(f"[telegram] Alert sent: {title}")
@@ -67,18 +78,8 @@ def send_daily_digest(articles):
 
     text = header + "\n\n".join(items)
 
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": text,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": True,
-    }
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    resp = requests.post(url, json=payload, timeout=10)
-    if resp.ok:
+    if _send(text, disable_preview=True):
         print(f"[telegram] Daily digest sent ({len(articles)} articles)")
-    else:
-        print(f"[telegram] ERROR sending digest {resp.status_code}: {resp.text}")
 
 
 def _escape(text):
