@@ -26,7 +26,7 @@ def main():
         if is_seen(url):
             continue
 
-        if is_relevant(article):
+        if is_relevant(article.get("title", ""), article.get("summary", "")):
             article["category"] = classify_category(article)
             send_article_alert(article)
             mark_seen(article)
