@@ -1,19 +1,26 @@
 import os
-import telegram
+import requests
 from src.filter import classify_category
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 
-def _get_bot():
-    if not TELEGRAM_BOT_TOKEN:
-        raise ValueError("TELEGRAM_BOT_TOKEN is not set")
-    return telegram.Bot(token=TELEGRAM_BOT_TOKEN)
+def _send(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": False,
+    }
+    resp = requests.post(url, json=payload, timeout=10)
+    if not resp.ok:
+        print(f"[telegram] ERROR {resp.status_code}: {resp.text}")
+    return resp.ok
 
 
 def send_article_alert(article):
-    bot = _get_bot()
     title = article.get("title", "No title")
     summary = article.get("summary", "")[:200]
     link = article.get("link", "")
@@ -27,16 +34,8 @@ def send_article_alert(article):
         f"[Baca selengkapnya]({link})"
     )
 
-    try:
-        bot.send_message(
-            chat_id=TELEGRAM_CHAT_ID,
-            text=text,
-            parse_mode="Markdown",
-            disable_web_page_preview=False,
-        )
+    if _send(text):
         print(f"[telegram] Alert sent: {title}")
-    except Exception as e:
-        print(f"[telegram] ERROR sending alert: {e}")
 
 
 def send_daily_digest(articles):
@@ -44,16 +43,13 @@ def send_daily_digest(articles):
         print("[telegram] No articles for digest today")
         return
 
-    bot = _get_bot()
     from datetime import datetime
+    from collections import Counter
 
     today_str = datetime.utcnow().strftime("%d %b %Y")
     top = articles[:5]
 
-    # Determine dominant category
-    from src.filter import classify_category as _cat
-    from collections import Counter
-    cats = Counter(_cat(a) for a in articles)
+    cats = Counter(classify_category(a) for a in articles)
     dominant_cat, dominant_count = cats.most_common(1)[0]
 
     header = (
@@ -71,20 +67,21 @@ def send_daily_digest(articles):
 
     text = header + "\n\n".join(items)
 
-    try:
-        bot.send_message(
-            chat_id=TELEGRAM_CHAT_ID,
-            text=text,
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-        )
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": True,
+    }
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    resp = requests.post(url, json=payload, timeout=10)
+    if resp.ok:
         print(f"[telegram] Daily digest sent ({len(articles)} articles)")
-    except Exception as e:
-        print(f"[telegram] ERROR sending digest: {e}")
+    else:
+        print(f"[telegram] ERROR sending digest {resp.status_code}: {resp.text}")
 
 
 def _escape(text):
-    # Escape Markdown special chars that break formatting (but keep intentional *)
-    for ch in ["_", "[", "]", "(", ")", "~", "`", ">", "#", "+", "-", "=", "|", "{", "}", "."]:
+    for ch in ["_", "*", "`", "["]:
         text = text.replace(ch, "\\" + ch)
     return text
