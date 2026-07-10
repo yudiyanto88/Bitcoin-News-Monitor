@@ -75,4 +75,4 @@ def is_relevant(title: str, summary: str) -> bool:
         return False
 
     matches = sum(1 for kw in RELEVANT_KEYWORDS if kw in text)
-    return matches >= 2
+    return matches >= 1
